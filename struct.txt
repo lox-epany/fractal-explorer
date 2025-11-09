@@ -1,0 +1,28 @@
+project/
+├── src/
+│   ├── main.py                 # точка входа
+│   ├── ui/
+│   │   ├── __init__.py
+│   │   ├── main_window.py      # главное окно (PyQt6)
+│   │   ├── dialogs.py          # диалоги сохранения, параметров
+│   │   └── canvas.py           # виджет для рисования фрактала
+│   ├── db/
+│   │   ├── __init__.py
+│   │   ├── database.py         # работа с SQLite
+│   │   └── schema.sql          # схема БД
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── fractal_engine.py   # wrapper для C++ (ctypes)
+│   │   └── utils.py
+│   └── resources/
+│       ├── icon.ico
+│       └── styles.qss          # стили для PyQt6
+├── lib/
+│   └── mandelbrot.dll          # скомпилированный C++
+├── cpp/
+│   ├── mandelbrot.cpp          # основной код
+│   ├── mandelbrot.h
+│   └── CMakeLists.txt          # для компиляции
+├── build_exe.py                # скрипт для сборки EXE
+├── requirements.txt
+└── README.md
