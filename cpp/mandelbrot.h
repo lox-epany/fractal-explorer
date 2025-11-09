@@ -1,28 +1,32 @@
 #ifndef MANDELBROT_H
 #define MANDELBROT_H
 
-#ifdef _WIN32
-    #define EXPORT __declspec(dllexport)
-#else
-    #define EXPORT
-#endif
+// Защита от повторного включения файла
 
+#ifdef __cplusplus
 extern "C" {
-    /*
-    Вычислить полосу множества Мандельброта
-
-    xmin, xmax, ymin, ymax — диапазон координат фрактала
-    max_iter — макс. итераций
-    width — ширина изображения (пикселей)
-    y_start, y_end — строка вычисляемой полосы (в пикселях по высоте)
-    result — указатель на память для вывода результата (int массив размером width*(y_end-y_start))
-    */
-    EXPORT void compute_mandelbrot_stripe(
-        double xmin, double xmax, double ymin, double ymax,
-        int max_iter, int width,
-        int y_start, int y_end,
-        int* result
-    );
-}
-
 #endif
+    // Если компилятор C++, то оборачиваем в extern "C"
+    // для совместимости с ctypes Python
+
+    /*
+     * Вычисление множества Мандельброта
+     *
+     * Параметры:
+     *   center_x, center_y - координаты центра видимой области
+     *   zoom               - уровень масштабирования (1.0 = стандартный вид)
+     *   width, height      - размеры выходного изображения в пикселях
+     *   output             - указатель на массив для результатов (width * height)
+     *   max_iterations     - максимальное количество итераций на пиксель
+     *
+     * Возвращает:
+     *   void - результат записывается в output массив
+     */
+    void calculate_mandelbrot(double center_x, double center_y, double zoom,
+                             int width, int height, int* output, int max_iterations);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // MANDELBROT_H
