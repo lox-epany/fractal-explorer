@@ -17,6 +17,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Fractal Explorer")
         self.setGeometry(100, 100, 1200, 800)
         self._setup_ui()
+        self.canvas.customContextMenuRequested.connect(self._on_canvas_resize)
 
     def _setup_ui(self):
         # Меню-бар
@@ -70,7 +71,7 @@ class MainWindow(QMainWindow):
         # Диапазон X
         self.xmin = QDoubleSpinBox()
         self.xmin.setRange(-10, 10)
-        self.xmin.setValue(-2.5)
+        self.xmin.setValue(-1.5)
         form.addRow("X min:", self.xmin)
 
         self.xmax = QDoubleSpinBox()
@@ -137,21 +138,51 @@ class MainWindow(QMainWindow):
         self.import_action.triggered.connect(self._import)
         self.btn_compute.clicked.connect(self._button_compute)
 
-        # создаем поток для вычислений
-        self.thread = QThread()
-        self.worker = FractalWorker()
-        self.worker.moveToThread(self.thread)
+        # # создаем поток для вычислений
+        # self.thread = QThread()
+        # self.worker = FractalWorker()
+        # self.worker.moveToThread(self.thread)
+        #
+        # # Подключаем сигналы для управления UI и обработки результатов
+        # self.thread.started.connect(self.worker.do_work)
+        # self.worker.finished.connect(self.thread.quit)
+        # self.worker.finished.connect(self.worker.deleteLater)
+        # self.thread.finished.connect(self.thread.deleteLater)
+        #
+        # self.worker.progress.connect(self.on_progress)
+        # self.worker.preview_ready.connect(self.on_result)
+        # self.worker.error.connect(self.on_error)
+        # self.worker.stripe_ready.connect(self.on_stripe_ready)
 
-        # Подключаем сигналы для управления UI и обработки результатов
-        self.thread.started.connect(self.worker.do_work)
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
+    def _get_fractal_params(self):
+        """Преобразует диапазоны в center/zoom формат"""
+        # Получаем текущий размер canvas (а не фиксированный)
+        canvas_size = self.canvas.size()
+        width = canvas_size.width()
+        height = canvas_size.height()
 
-        self.worker.progress.connect(self.on_progress)
-        self.worker.preview_ready.connect(self.on_result)
-        self.worker.error.connect(self.on_error)
-        self.worker.stripe_ready.connect(self.on_stripe_ready)
+        # Вычисляем центр и zoom с учётом соотношения сторон
+        center_x = (self.xmin.value() + self.xmax.value()) / 2
+        center_y = (self.ymin.value() + self.ymax.value()) / 2
+
+        # Zoom рассчитываем правильно с учётом aspect ratio
+        range_x = self.xmax.value() - self.xmin.value()
+        range_y = self.ymax.value() - self.ymin.value()
+
+        # Подбираем zoom чтобы вписать в текущие диапазоны
+        zoom_x = 2.0 / range_x
+        zoom_y = 2.0 / range_y * (height / width)  # Корректируем на aspect ratio
+
+        zoom = min(zoom_x, zoom_y)
+
+        return {
+            'center_x': center_x,
+            'center_y': center_y,
+            'zoom': zoom,
+            'width': width,  # Текущая ширина canvas
+            'height': height,  # Текущая высота canvas
+            'max_iterations': self.iterations.value()
+        }
 
     def _import(self):
         print("imported")
@@ -166,13 +197,30 @@ class MainWindow(QMainWindow):
         print("saved")
 
     def _button_compute(self):
-        self.statusBar().showMessage("начало расчёта")
-        try:
-            print(f"buttoned \n{self.xmin.value()} {self.xmax.value()}\n{self.ymin.value()} {self.ymax.value()}")
+        self.statusBar().showMessage("Начало расчёта...")
+        self.progress.setValue(0)
 
-        except Exception as e:
-            self.statusBar().showMessage(str(e))
+        params = self._get_fractal_params()
 
+        # Создаем и запускаем worker
+        self.worker = FractalWorker("Mandelbrot", params)
+        self.worker.finished.connect(self._on_calculation_finished)
+        self.worker.error.connect(self._on_calculation_error)
+        self.worker.start()
+
+    def _on_calculation_finished(self, result):
+        # Передаём данные в canvas (он сам создаст изображение нужного размера)
+        self.canvas.set_fractal_data(result)
+        self.statusBar().showMessage("Готово!")
+
+    def _on_calculation_error(self, error_msg):
+        print(error_msg)
+        self.statusBar().showMessage(f"Ошибка: {error_msg}")
+
+    def _on_canvas_resize(self):
+        """При изменении размера canvas можно пересчитать фрактал"""
+        # Позже добавим авто-пересчёт при ресайзе
+        pass
 
 
 if __name__ == "__main__":
