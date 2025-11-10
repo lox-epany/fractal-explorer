@@ -1,11 +1,31 @@
-import ctypes
 import numpy as np
-import os
+import os, sys, ctypes
 
 
 class FractalEngine:
     def __init__(self):
-        self.lib = ctypes.CDLL(os.path.join(os.path.dirname(__file__), '..', '..', 'lib', 'libmandelbrot.dll'))
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # ВЫБОР БИБЛИОТЕКИ В ЗАВИСИМОСТИ ОТ ОС
+        if sys.platform == "win32":
+            lib_names = ["mandelbrot.dll", "libmandelbrot.dll"]
+        else:
+            lib_names = ["libmandelbrot.so", "mandelbrot.so"]
+
+        self.lib = None
+        for lib_name in lib_names:
+            lib_path = os.path.join(base_dir, '..', '..', 'lib', lib_name)
+            try:
+                if os.path.exists(lib_path):
+                    self.lib = ctypes.CDLL(lib_path)
+                    print(f"✅ Загружена библиотека: {lib_path}")
+                    break
+            except Exception as e:
+                print(f"❌ Ошибка загрузки {lib_path}: {e}")
+
+        if self.lib is None:
+            raise FileNotFoundError(f"Не удалось загрузить библиотеку фракталов. Искал: {lib_names}")
+
         self._setup_function_types()
 
     def _setup_function_types(self):

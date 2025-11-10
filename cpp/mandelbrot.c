@@ -9,7 +9,7 @@
  * Затем итерируем формулу: z_{n+1} = z_n^2 + c, где z0 = 0, c = (cx, cy)
  * Пиксель принадлежит множеству Мандельброта, если последовательность не уходит в бесконечность
  */
-void calculate_mandelbrot(double center_x, double center_y, double zoom,
+MANDELBROT_API void  calculate_mandelbrot(double center_x, double center_y, double zoom,
                          int width, int height, int* output, int max_iterations) {
 
     /*
