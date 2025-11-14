@@ -8,7 +8,7 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 from canvas import Canvas  # кастомный виджет для отображения фракталов
 from src.core.worker import FractalWorker
-# from ./worker import FractalWorker
+from src.db.database import Database
 
 
 class MainWindow(QMainWindow):
@@ -18,6 +18,8 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 800)
         self._setup_ui()
         self.canvas.customContextMenuRequested.connect(self._on_canvas_resize)
+        self.worker = None  # Добавляем ссылку на worker
+        self.db = Database()
 
     def _setup_ui(self):
         # Меню-бар
@@ -138,21 +140,23 @@ class MainWindow(QMainWindow):
         self.import_action.triggered.connect(self._import)
         self.btn_compute.clicked.connect(self._button_compute)
 
-        # # создаем поток для вычислений
-        # self.thread = QThread()
-        # self.worker = FractalWorker()
-        # self.worker.moveToThread(self.thread)
-        #
-        # # Подключаем сигналы для управления UI и обработки результатов
-        # self.thread.started.connect(self.worker.do_work)
-        # self.worker.finished.connect(self.thread.quit)
-        # self.worker.finished.connect(self.worker.deleteLater)
-        # self.thread.finished.connect(self.thread.deleteLater)
-        #
-        # self.worker.progress.connect(self.on_progress)
-        # self.worker.preview_ready.connect(self.on_result)
-        # self.worker.error.connect(self.on_error)
-        # self.worker.stripe_ready.connect(self.on_stripe_ready)
+        # Меню для галереи
+        gallery_menu = QMenu("Галерея", self)
+        self.menuBar().addMenu(gallery_menu)
+
+        # Действия
+        self.save_preset_action = QAction("Сохранить пресет...", self)
+        self.load_preset_action = QAction("Загрузить пресет...", self)
+        self.gallery_action = QAction("Галерея...", self)
+
+        gallery_menu.addAction(self.save_preset_action)
+        gallery_menu.addAction(self.load_preset_action)
+        gallery_menu.addAction(self.gallery_action)
+
+        # Подключаем сигналы
+        self.save_preset_action.triggered.connect(self._save_preset)
+        self.load_preset_action.triggered.connect(self._load_preset)
+        self.gallery_action.triggered.connect(self._show_gallery)
 
     def _get_fractal_params(self):
         """Преобразует диапазоны в center/zoom формат"""
@@ -197,30 +201,198 @@ class MainWindow(QMainWindow):
         print("saved")
 
     def _button_compute(self):
-        self.statusBar().showMessage("Начало расчёта...")
+        """Запуск вычислений в отдельном потоке"""
+        if self.worker and self.worker.isRunning():
+            self.statusBar().showMessage("Вычисления уже запущены...")
+            return
+
+        self.statusBar().showMessage("Подготовка вычислений...")
         self.progress.setValue(0)
+        self.btn_compute.setEnabled(False)  # Блокируем кнопку
 
+        # Получаем параметры
         params = self._get_fractal_params()
+        fractal_type = self.fractal_type.currentText()
 
-        # Создаем и запускаем worker
-        self.worker = FractalWorker("Mandelbrot", params)
-        self.worker.finished.connect(self._on_calculation_finished)
-        self.worker.error.connect(self._on_calculation_error)
+        # Создаем и настраиваем worker
+        self.worker = FractalWorker(fractal_type, params)
+        self.worker.progress_updated.connect(self._on_progress_updated)
+        self.worker.calculation_finished.connect(self._on_calculation_finished)
+        self.worker.error_occurred.connect(self._on_calculation_error)
+
+        # Запускаем
         self.worker.start()
+        self.statusBar().showMessage("Вычисления запущены...")
+
+    def _on_progress_updated(self, progress):
+        """Обновление прогресс-бара"""
+        self.progress.setValue(progress)
 
     def _on_calculation_finished(self, result):
-        # Передаём данные в canvas (он сам создаст изображение нужного размера)
+        """Вычисления завершены успешно"""
         self.canvas.set_fractal_data(result)
+        self.progress.setValue(100)
+        self.btn_compute.setEnabled(True)
         self.statusBar().showMessage("Готово!")
 
     def _on_calculation_error(self, error_msg):
-        print(error_msg)
-        self.statusBar().showMessage(f"Ошибка: {error_msg}")
+        """Обработка ошибок"""
+        self.progress.setValue(0)
+        self.btn_compute.setEnabled(True)
+        self.statusBar().showMessage(error_msg)
+        print(f"Ошибка: {error_msg}")
+
+    def closeEvent(self, event):
+        """При закрытии окна останавливаем worker если он запущен"""
+        if self.worker and self.worker.isRunning():
+            self.worker.cancel()
+            self.worker.wait(1000)  # Ждем 1 секунду для завершения
+        event.accept()
 
     def _on_canvas_resize(self):
         """При изменении размера canvas можно пересчитать фрактал"""
         # Позже добавим авто-пересчёт при ресайзе
         pass
+
+    def _save_preset(self):
+        """Сохранение текущих параметров как пресета"""
+        from PyQt6.QtWidgets import QInputDialog
+
+        name, ok = QInputDialog.getText(
+            self, "Сохранение пресета", "Введите название пресета:"
+        )
+
+        if ok and name:
+            try:
+                params = self._get_fractal_params()
+                fractal_type = self.fractal_type.currentText()
+
+                # Сохраняем в БД
+                self.db.save_preset(
+                    name=name,
+                    fractal_type=fractal_type,
+                    center_x=params['center_x'],
+                    center_y=params['center_y'],
+                    zoom=params['zoom'],
+                    max_iterations=params['max_iterations'],
+                    c_real=self.c_real.value() if fractal_type == "Julia" else None,
+                    c_imag=self.c_imag.value() if fractal_type == "Julia" else None
+                )
+
+                self.statusBar().showMessage(f"Пресет '{name}' сохранен!")
+
+            except Exception as e:
+                self.statusBar().showMessage(f"Ошибка сохранения: {str(e)}")
+
+    def _load_preset(self):
+        """Загрузка пресета из БД"""
+        from PyQt6.QtWidgets import QInputDialog, QListWidget, QDialog, QVBoxLayout, QDialogButtonBox
+
+        # Получаем пресеты из БД
+        presets = self.db.load_presets()
+
+        if not presets:
+            self.statusBar().showMessage("Нет сохраненных пресетов")
+            return
+
+        # Диалог выбора пресета
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Выберите пресет")
+        layout = QVBoxLayout()
+
+        list_widget = QListWidget()
+        for preset in presets:
+            list_widget.addItem(f"{preset['name']} ({preset['fractal_type']})")
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+
+        layout.addWidget(list_widget)
+        layout.addWidget(buttons)
+        dialog.setLayout(layout)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted and list_widget.currentItem():
+            selected_preset = presets[list_widget.currentRow()]
+            self._apply_preset(selected_preset)
+
+    def _apply_preset(self, preset):
+        """Применяет параметры пресета к UI"""
+        try:
+            # Устанавливаем тип фрактала
+            index = self.fractal_type.findText(preset['fractal_type'])
+            if index >= 0:
+                self.fractal_type.setCurrentIndex(index)
+
+            # Вычисляем диапазоны из center/zoom
+            range_x = 2.0 / preset['zoom']
+            range_y = range_x * (self.canvas.height() / self.canvas.width())
+
+            self.xmin.setValue(preset['center_x'] - range_x / 2)
+            self.xmax.setValue(preset['center_x'] + range_x / 2)
+            self.ymin.setValue(preset['center_y'] - range_y / 2)
+            self.ymax.setValue(preset['center_y'] + range_y / 2)
+            self.iterations.setValue(preset['max_iterations'])
+
+            # Параметры Julia
+            if preset['fractal_type'] == 'Julia':
+                if preset['c_real'] is not None:
+                    self.c_real.setValue(preset['c_real'])
+                if preset['c_imag'] is not None:
+                    self.c_imag.setValue(preset['c_imag'])
+
+            self.statusBar().showMessage(f"Загружен пресет: {preset['name']}")
+
+        except Exception as e:
+            self.statusBar().showMessage(f"Ошибка загрузки пресета: {str(e)}")
+
+    def _show_gallery(self):
+        """Показывает галерею сохраненных фракталов"""
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QLabel, QHBoxLayout
+        from PyQt6.QtGui import QPixmap
+        from PyQt6.QtCore import Qt
+
+        presets = self.db.load_presets()
+
+        if not presets:
+            self.statusBar().showMessage("Галерея пуста")
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Галерея фракталов")
+        dialog.resize(600, 400)
+
+        layout = QHBoxLayout()
+
+        # Список пресетов
+        preset_list = QListWidget()
+        for preset in presets:
+            preset_list.addItem(f"{preset['name']} ({preset['fractal_type']})")
+
+        # Информация о выбранном пресете
+        info_label = QLabel("Выберите пресет из списка")
+        info_label.setWordWrap(True)
+
+        preset_list.currentRowChanged.connect(
+            lambda row: info_label.setText(self._format_preset_info(presets[row]))
+        )
+
+        layout.addWidget(preset_list, 1)
+        layout.addWidget(info_label, 2)
+
+        dialog.setLayout(layout)
+        dialog.exec()
+
+    def _format_preset_info(self, preset):
+        """Форматирует информацию о пресете для отображения"""
+        return f"""
+        <b>{preset['name']}</b><br>
+        Тип: {preset['fractal_type']}<br>
+        Центр: ({preset['center_x']:.4f}, {preset['center_y']:.4f})<br>
+        Масштаб: {preset['zoom']:.2f}<br>
+        Итерации: {preset['max_iterations']}<br>
+        {f"Параметр C: ({preset['c_real']:.4f} + {preset['c_imag']:.4f}i)" if preset['fractal_type'] == 'Julia' else ''}
+        """
 
 
 if __name__ == "__main__":

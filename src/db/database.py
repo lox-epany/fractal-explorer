@@ -1,84 +1,85 @@
 import sqlite3
 import os
-from pathlib import Path
-import io
+from datetime import datetime
+from PyQt6.QtGui import QImage
+import json
 
 
 class Database:
-    def __init__(self, db_path="fractal_explorer.db"):
+    def __init__(self, db_path="fractals.db"):
         self.db_path = db_path
-        self.conn = None
-        self.init_db()
+        self._init_db()
 
-    def init_db(self):
-        """Инициализировать БД"""
-        if not os.path.exists(self.db_path):
-            self.create_tables()
-        self.conn = sqlite3.connect(self.db_path)
-        self.conn.row_factory = sqlite3.Row
+    def _init_db(self):
+        """Инициализация БД и создание таблиц"""
+        with sqlite3.connect(self.db_path) as conn:
+            # Читаем и выполняем schema.sql
+            schema_path = os.path.join(os.path.dirname(__file__), 'schema.sql')
+            with open(schema_path, 'r', encoding='utf-8') as f:
+                schema_sql = f.read()
 
-    def create_tables(self):
-        """Создать таблицы из schema.sql"""
-        schema_path = Path(__file__).parent / "schema.sql"
-        with open(schema_path, 'r') as f:
-            sql = f.read()
+            conn.executescript(schema_sql)
+            conn.commit()
 
-        conn = sqlite3.connect(self.db_path)
-        conn.executescript(sql)
-        conn.commit()
-        conn.close()
+    def save_preset(self, name, fractal_type, center_x, center_y, zoom,
+                    max_iterations, c_real=None, c_imag=None):
+        """Сохраняет пресет фрактала в БД"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO fractal_presets 
+                (name, fractal_type, center_x, center_y, zoom, max_iterations, c_real, c_imag)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (name, fractal_type, center_x, center_y, zoom, max_iterations, c_real, c_imag))
+            conn.commit()
+            return cursor.lastrowid
 
-    def save_to_gallery(self, name, fractal_type, params, thumbnail=None):
-        """Сохранить фрактал в галерею"""
-        cursor = self.conn.cursor()
+    def load_presets(self, fractal_type=None):
+        """Загружает все пресеты (или только определенного типа)"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row  # Чтобы получать dict-like объекты
+            cursor = conn.cursor()
 
-        thumbnail_blob = None
-        if thumbnail:
-            img_bytes = io.BytesIO()
-            thumbnail.save(img_bytes, format='PNG')
-            thumbnail_blob = img_bytes.getvalue()
+            if fractal_type:
+                cursor.execute('''
+                    SELECT * FROM fractal_presets 
+                    WHERE fractal_type = ? 
+                    ORDER BY created_at DESC
+                ''', (fractal_type,))
+            else:
+                cursor.execute('''
+                    SELECT * FROM fractal_presets 
+                    ORDER BY created_at DESC
+                ''')
 
-        cursor.execute("""
-            INSERT INTO gallery 
-            (name, description, fractal_type, xmin, xmax, ymin, ymax, 
-             iterations, c_real, c_imag, thumbnail, render_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            name, "", fractal_type,
-            params['xmin'], params['xmax'], params['ymin'], params['ymax'],
-            params['iterations'], params.get('c_real'), params.get('c_imag'),
-            thumbnail_blob, params.get('render_time', 0)
-        ))
+            return [dict(row) for row in cursor.fetchall()]
 
-        self.conn.commit()
+    def delete_preset(self, preset_id):
+        """Удаляет пресет по ID"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM fractal_presets WHERE id = ?', (preset_id,))
+            conn.commit()
 
-    def load_gallery(self):
-        """Загрузить все фракталы из галереи"""
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM gallery ORDER BY created_at DESC")
-        return cursor.fetchall()
+    def save_image(self, preset_id, image_data, width, height):
+        """Сохраняет изображение фрактала в БД"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO fractal_images (preset_id, image_data, width, height)
+                VALUES (?, ?, ?, ?)
+            ''', (preset_id, image_data, width, height))
+            conn.commit()
+            return cursor.lastrowid
 
-    def load_presets(self):
-        """Загрузить предустановки"""
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM presets")
-        return cursor.fetchall()
-
-    def add_to_history(self, fractal_type, params, render_time):
-        """Добавить в историю"""
-        cursor = self.conn.cursor()
-        cursor.execute("""
-            INSERT INTO history 
-            (fractal_type, xmin, xmax, ymin, ymax, iterations, render_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            fractal_type,
-            params['xmin'], params['xmax'], params['ymin'], params['ymax'],
-            params['iterations'], render_time
-        ))
-        self.conn.commit()
-
-    def close(self):
-        """Закрыть соединение"""
-        if self.conn:
-            self.conn.close()
+    def load_images(self, preset_id):
+        """Загружает изображения для пресета"""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT * FROM fractal_images 
+                WHERE preset_id = ? 
+                ORDER BY created_at DESC
+            ''', (preset_id,))
+            return [dict(row) for row in cursor.fetchall()]
