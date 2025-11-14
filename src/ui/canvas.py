@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QWidget
-from PyQt6.QtGui import QImage, QPainter, QColor
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QImage, QPainter, QColor,QCursor
+from PyQt6.QtCore import Qt, QTimer, QPointF
 import numpy as np
 
 

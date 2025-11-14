@@ -16,7 +16,8 @@ endif()
 # Поиск OpenMP (пока ещё не нужен)
 # find_package(OpenMP REQUIRED)
 
-add_library(mandelbrot SHARED mandelbrot.c)
+add_library(mandelbrot SHARED mandelbrot.c
+        testing.c)
 
 # Для OpenMP (раскомментируем позже)
 # if(OpenMP_C_FOUND)

@@ -11,12 +11,12 @@ extern "C" {
     // УНИВЕРСАЛЬНЫЕ ДИРЕКТИВЫ ЭКСПОРТА
 #ifdef _WIN32
 #ifdef MANDELBROT_EXPORTS
-#define MANDELBROT_API __declspec(dllexport)
+#define CALCULATE_API __declspec(dllexport)
 #else
-#define MANDELBROT_API __declspec(dllimport)
+#define CALCULATE_API __declspec(dllimport)
 #endif
 #else
-#define MANDELBROT_API __attribute__((visibility("default")))
+#define CALCULATE_API __attribute__((visibility("default")))
 #endif
     /*
      * Вычисление множества Мандельброта
@@ -31,8 +31,11 @@ extern "C" {
      * Возвращает:
      *   void - результат записывается в output массив
      */
-    MANDELBROT_API void calculate_mandelbrot(double center_x, double center_y, double zoom,
+    CALCULATE_API void calculate_mandelbrot(double center_x, double center_y, double zoom,
                              int width, int height, int* output, int max_iterations);
+
+    CALCULATE_API void calculate_julia(double c_real, double c_imag, double center_x, double center_y,
+                             double zoom, int width, int height, int* output, int max_iterations);
 
 #ifdef __cplusplus
 }

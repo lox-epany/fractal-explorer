@@ -9,26 +9,27 @@
  * Затем итерируем формулу: z_{n+1} = z_n^2 + c, где z0 = 0, c = (cx, cy)
  * Пиксель принадлежит множеству Мандельброта, если последовательность не уходит в бесконечность
  */
-MANDELBROT_API void  calculate_mandelbrot(double center_x, double center_y, double zoom,
+CALCULATE_API void calculate_mandelbrot(double center_x, double center_y, double zoom,
                          int width, int height, int* output, int max_iterations) {
 
     /*
      * Параметры преобразования пикселей → комплексные координаты
      */
     double scale = 2.0 / zoom;  // Масштаб: 2.0 покрывает диапазон [-1, 1] при zoom=1
-    double aspect_ratio = (double)height / width;  // Соотношение сторон
+    double aspect_ratio = (double)width / height;  // Соотношение сторон
 
     /*
      * Вычисляем смещение для перевода пикселей в комплексные координаты
      * Мы хотим чтобы центр экрана (width/2, height/2) соответствовал (center_x, center_y)
      */
     double pixel_to_real = scale / width;     // Коэффициент для X координаты
-    double pixel_to_imag = scale * aspect_ratio / height;  // Коэффициент для Y координаты
+    double pixel_to_imag = scale / aspect_ratio / height;  // Коэффициент для Y координаты
 
     /*
      * Основной цикл по всем пикселям
      * Пока БЕЗ многопоточности - добавим OpenMP позже
      */
+//    #pragma omp parallel for collapse(2) schedule(dynamic)
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
 
@@ -79,6 +80,42 @@ MANDELBROT_API void  calculate_mandelbrot(double center_x, double center_y, doub
              * - iteration == max_iterations: точка в множестве (обычно чёрный)
              * - iteration < max_iterations: точка вне множества (цвет зависит от итерации)
              */
+            output[y * width + x] = iteration;
+        }
+    }
+}
+
+CALCULATE_API void calculate_julia(
+    double c_real, double c_imag,      // Параметр C для Julia
+    double center_x, double center_y,
+    double zoom,
+    int width, int height,
+    int* output,
+    int max_iterations
+) {
+    double scale = 2.0 / zoom;
+    double aspect_ratio = (double)width / height;
+    double world_width = scale;
+    double world_height = scale / aspect_ratio;
+    double pixel_to_real = world_width / width;
+    double pixel_to_imag = world_height / height;
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            // Начальное z = координате пикселя
+            double z_real = (x - width / 2.0) * pixel_to_real + center_x;
+            double z_imag = (y - height / 2.0) * pixel_to_imag + center_y;
+
+            int iteration = 0;
+
+            // Формула Жюлиа: z = z² + c (c - фиксированный параметр)
+            while (z_real * z_real + z_imag * z_imag < 4.0 && iteration < max_iterations) {
+                double temp = z_real * z_real - z_imag * z_imag + c_real;
+                z_imag = 2.0 * z_real * z_imag + c_imag;
+                z_real = temp;
+                iteration++;
+            }
+
             output[y * width + x] = iteration;
         }
     }

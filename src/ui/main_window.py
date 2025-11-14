@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
         # Диапазон X
         self.xmin = QDoubleSpinBox()
         self.xmin.setRange(-10, 10)
-        self.xmin.setValue(-1.5)
+        self.xmin.setValue(-1.0)
         form.addRow("X min:", self.xmin)
 
         self.xmax = QDoubleSpinBox()
@@ -165,6 +165,9 @@ class MainWindow(QMainWindow):
         width = canvas_size.width()
         height = canvas_size.height()
 
+        c_real = self.c_real.value()
+        c_imag = self.c_imag.value()
+
         # Вычисляем центр и zoom с учётом соотношения сторон
         center_x = (self.xmin.value() + self.xmax.value()) / 2
         center_y = (self.ymin.value() + self.ymax.value()) / 2
@@ -178,8 +181,10 @@ class MainWindow(QMainWindow):
         zoom_y = 2.0 / range_y * (height / width)  # Корректируем на aspect ratio
 
         zoom = min(zoom_x, zoom_y)
+        print(self.fractal_type.currentText())
 
-        return {
+        if self.fractal_type.currentText() == "Mandelbrot":
+            return {
             'center_x': center_x,
             'center_y': center_y,
             'zoom': zoom,
@@ -187,6 +192,17 @@ class MainWindow(QMainWindow):
             'height': height,  # Текущая высота canvas
             'max_iterations': self.iterations.value()
         }
+        else: return {
+            'c_real': c_real,
+            'c_imag': c_imag,
+            'center_x': center_x,
+            'center_y': center_y,
+            'zoom': zoom,
+            'width': width,  # Текущая ширина canvas
+            'height': height,  # Текущая высота canvas
+            'max_iterations': self.iterations.value()
+        }
+
 
     def _import(self):
         print("imported")
