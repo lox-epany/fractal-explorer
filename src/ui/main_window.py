@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 )
 import sys
 from PyQt6.QtGui import QAction
-from PyQt6.QtCore import QThread, pyqtSignal, QObject
+from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt
 from canvas import Canvas  # кастомный виджет для отображения фракталов
 from src.core.worker import FractalWorker
 from src.db.database import Database
@@ -157,6 +157,14 @@ class MainWindow(QMainWindow):
         self.save_preset_action.triggered.connect(self._save_preset)
         self.load_preset_action.triggered.connect(self._load_preset)
         self.gallery_action.triggered.connect(self._show_gallery)
+
+        # Настраиваем callback для canvas
+        self.canvas.set_recalculation_callback(self._on_navigation_changed)
+
+        # Добавляем кнопку сброса
+        self.btn_reset = QPushButton("Сброс вида")
+        # Добавь эту кнопку в layout где-то после btn_compute
+        self.btn_reset.clicked.connect(self.canvas.reset_view)
 
     def _get_fractal_params(self):
         """Преобразует диапазоны в center/zoom формат"""
@@ -409,6 +417,56 @@ class MainWindow(QMainWindow):
         Итерации: {preset['max_iterations']}<br>
         {f"Параметр C: ({preset['c_real']:.4f} + {preset['c_imag']:.4f}i)" if preset['fractal_type'] == 'Julia' else ''}
         """
+
+    def _on_navigation_changed(self, params):
+        """Вызывается когда пользователь изменяет вид через canvas"""
+        self.statusBar().showMessage("Пересчёт...")
+
+        # Обновляем UI параметры чтобы они соответствовали навигации
+        self._update_ui_from_canvas(params)
+
+        # Запускаем вычисления
+        fractal_type = self.fractal_type.currentText()
+        if fractal_type == "Julia":
+            params['c_real'] = self.c_real.value()
+            params['c_imag'] = self.c_imag.value()
+
+        self._start_calculation(fractal_type, params)
+
+    def _update_ui_from_canvas(self, params):
+        """Обновляет UI параметры из параметров canvas"""
+        # Вычисляем диапазоны для отображения в UI
+        range_x = 2.0 / params['zoom']
+        range_y = range_x * (params['height'] / params['width'])
+
+        self.xmin.setValue(params['center_x'] - range_x / 2)
+        self.xmax.setValue(params['center_x'] + range_x / 2)
+        self.ymin.setValue(params['center_y'] - range_y / 2)
+        self.ymax.setValue(params['center_y'] + range_y / 2)
+
+    def _start_calculation(self, fractal_type, params):
+        """Запускает вычисления с новыми параметрами"""
+        if self.worker and self.worker.isRunning():
+            self.worker.cancel()  # Отменяем предыдущие вычисления
+
+        self.worker = FractalWorker(fractal_type, params)
+        self.worker.progress_updated.connect(self._on_progress_updated)
+        self.worker.calculation_finished.connect(self._on_calculation_finished)
+        self.worker.error_occurred.connect(self._on_calculation_error)
+        self.worker.start()
+
+    def keyPressEvent(self, event):
+        """Обработка горячих клавиш"""
+        if event.key() == Qt.Key.Key_R:
+            self.canvas.reset_view()
+        elif event.key() == Qt.Key.Key_Equal:  # +
+            self.canvas._zoom_at_center(1.5)
+        elif event.key() == Qt.Key.Key_Minus:  # -
+            self.canvas._zoom_at_center(0.67)
+        elif event.key() == Qt.Key.Key_Escape:
+            self.close()
+        else:
+            super().keyPressEvent(event)
 
 
 if __name__ == "__main__":
