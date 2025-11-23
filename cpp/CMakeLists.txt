@@ -31,3 +31,5 @@ set_target_properties(mandelbrot PROPERTIES
         OUTPUT_NAME ${LIBRARY_OUTPUT_NAME}
         PREFIX ""
 )
+
+# gcc -shared -o ../lib/mandelbrot.dll mandelbrot.c julia.c

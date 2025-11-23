@@ -4,9 +4,10 @@ from PyQt6.QtWidgets import (
     QPushButton, QProgressBar, QStatusBar, QApplication
 )
 import sys
+sys.path.append(sys.path[0][:-6])
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import QThread, pyqtSignal, QObject, Qt
-from canvas import Canvas  # кастомный виджет для отображения фракталов
+from src.ui.canvas import Canvas  # кастомный виджет для отображения фракталов
 from src.core.worker import FractalWorker
 from src.db.database import Database
 
