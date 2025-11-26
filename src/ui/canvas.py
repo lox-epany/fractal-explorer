@@ -1,7 +1,8 @@
 from PyQt6.QtWidgets import QWidget
-from PyQt6.QtGui import QImage, QPainter, QColor,QCursor
+from PyQt6.QtGui import QImage, QPainter, QImageWriter
 from PyQt6.QtCore import Qt, QTimer, QPointF
-import numpy as np
+import os
+from src.core.color_schemes import ColorSchemes
 
 
 class Canvas(QWidget):
@@ -30,6 +31,10 @@ class Canvas(QWidget):
 
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)  # Чтобы получать события клавиатуры
         self.setMouseTracking(True)  # Отслеживание движения мыши
+
+        # настройка градиентов для фракталов
+        self.current_color_scheme = "classic"
+        self.colormap = ColorSchemes.get_scheme(self.current_color_scheme)
 
     def set_recalculation_callback(self, callback):
         """Устанавливает функцию для пересчёта фрактала"""
@@ -196,21 +201,6 @@ class Canvas(QWidget):
             return 0, 0, 0  # Чёрный, если вне множества
         return self.colormap[iterations % 256]
 
-    # def update_stripe(self, pixels, y_start, y_end):
-    #     """
-    #     Обновляет изображение полосой пикселей.
-    #     pixels — numpy-массив формы (y_end - y_start, width),
-    #     содержащий количество итераций для каждого пикселя.
-    #     """
-    #     height = y_end - y_start
-    #     width = pixels.shape[1]
-    #
-    #     for y in range(height):
-    #         for x in range(width):
-    #             color = self._iterations_to_color(pixels[y, x])
-    #             self.image.setPixel(x, y_start + y, self._qRgb(*color))
-    #
-    #     self.update()  # Запрашиваем перерисовку
 
     def paintEvent(self, event):
         """Только быстрая отрисовка готового изображения"""
@@ -221,3 +211,38 @@ class Canvas(QWidget):
     def _qRgb(self, r, g, b):
         """Вспомогательный метод для создания QRgb"""
         return (r << 16) | (g << 8) | b
+
+    def export_image(self, filename, quality=100):
+        """Экспортирует текущее изображение в файл"""
+        if self.image:
+            writer = QImageWriter(filename)
+
+            # Определяем формат по расширению
+            ext = os.path.splitext(filename)[1].lower()
+            if ext in ['.png', '.jpg', '.jpeg', '.bmp']:
+                writer.setFormat(ext[1:].encode())
+
+            writer.setQuality(quality)
+
+            if writer.write(self.image):
+                return True
+            else:
+                print(f"Ошибка экспорта: {writer.errorString()}")
+                return False
+        return False
+
+    def set_color_scheme(self, scheme_name):
+        """Устанавливает цветовую схему"""
+        self.current_color_scheme = scheme_name
+        self.colormap = ColorSchemes.get_scheme(scheme_name)
+        if hasattr(self, 'fractal_data'):
+            self._create_image_from_data()
+            self.update()
+
+    def set_custom_colors(self, colors_list):
+        """Устанавливает кастомную цветовую схему"""
+        self.current_color_scheme = "custom"
+        self.colormap = ColorSchemes.custom_scheme(colors_list)
+        if hasattr(self, 'fractal_data'):
+            self._create_image_from_data()
+            self.update()
