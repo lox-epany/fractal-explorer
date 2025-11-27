@@ -45,13 +45,13 @@ class MainWindow(QMainWindow):
         self.save_preset_action = QAction("Сохранить пресет...", self)
         self.load_preset_action = QAction("Загрузить пресет...", self)
         self.export_action = QAction("Экспорт изображения...", self)
-        self.gallery_action = QAction("Просмотр галереи...", self)
+        # self.gallery_action = QAction("Просмотр галереи...", self)
 
         gallery_menu.addAction(self.save_preset_action)
         gallery_menu.addAction(self.load_preset_action)
         gallery_menu.addAction(self.export_action)
         gallery_menu.addSeparator()
-        gallery_menu.addAction(self.gallery_action)
+        # gallery_menu.addAction(self.gallery_action)
 
         self.setMenuBar(menubar)
 
@@ -151,7 +151,7 @@ class MainWindow(QMainWindow):
         self.export_action.triggered.connect(self._export)
         self.save_preset_action.triggered.connect(self._save_preset)
         self.load_preset_action.triggered.connect(self._load_preset)
-        self.gallery_action.triggered.connect(self._show_gallery)
+        # self.gallery_action.triggered.connect(self._show_gallery)
         self.btn_compute.clicked.connect(self._button_compute)
         self.btn_reset.clicked.connect(self.canvas.reset_view)
 
