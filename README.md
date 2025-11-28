@@ -1,5 +1,16 @@
 # Fractal Explorer
 
+```
+cd cpp
+
+# Компиляция для Windows
+gcc -shared -o ../lib/mandelbrot.dll mandelbrot.c
+
+# Компиляция для Linux  
+gcc -shared -fPIC -o ../lib/libmandelbrot.so mandelbrot.c
+```
+
+
 Интерактивное приложение для визуализации и исследования фракталов Мандельброта и Джулии.
 
 ![Fractal Explorer](https://img.shields.io/badge/Python-3.8%2B-blue)
