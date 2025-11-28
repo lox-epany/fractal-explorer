@@ -1,6 +1,7 @@
 # Fractal Explorer
 
 ```
+mkdir lib
 cd cpp
 
 # Компиляция для Windows
